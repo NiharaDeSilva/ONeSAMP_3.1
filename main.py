@@ -296,6 +296,8 @@ X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_
 y = np.array(allPopStatistics['Ne'])
 y = np.array([float(value) for value in y if float(value) > 0])
 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=40)
+
 # #Normalize the data
 # scaler = StandardScaler()
 # X_scaled = scaler.fit_transform(X)
@@ -303,44 +305,10 @@ y = np.array([float(value) for value in y if float(value) > 0])
 #
 # #Apply box-cox transformation
 # y_transformed, lambda_value = boxcox(y)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=40)
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-# Convert to PyTorch tensors
-X_train = X_train.astype(np.float32)
-X_test = X_test.astype(np.float32)
-X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
-X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
-y_train = y_train.astype(np.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1).to(device)
-y_test = y_test.astype(np.float32)
-y_test = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1).to(device)
-Z = Z.astype(np.float32)
-Z = torch.tensor(Z, dtype=torch.float32).to(device)
-
-
-print(f"\n-----------------Neural Network------------------")
-
-pop_gen_model = PopulationGeneticsModel(learning_rate=0.001, epochs=100, batch_size=128)
-pop_gen_model.train(X_train, y_train, X_test, y_test)
-
-prediction_results = pop_gen_model.predict_with_uncertainty(Z, n_simulations=100)
-print("Prediction Results")
-print(prediction_results)
-
-evaluation_results = pop_gen_model.evaluate(X_test, y_test)
-print(" ")
-print(evaluation_results)
-
-
-
-
-
 # ##########################
 # # RANDOM FOREST REGRESSION
 # ##########################
+'''
 print(f"\n-----------------RANDOM FOREST------------------")
 
 # Initialize the Random Forest Regressor
@@ -376,6 +344,36 @@ print("Prediction Results")
 print(f"{min_prediction} {max_prediction} {mean_prediction} {median_prediction} {lower_bound} {upper_bound}")
 print(" ")
 print(f"MSE: {mse:.2f}, RMSE: {rmse:.2f}, MAE: {mae:.2f}")
+'''
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+# Convert to PyTorch tensors
+X_train = X_train.astype(np.float32)
+X_test = X_test.astype(np.float32)
+X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
+X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
+y_train = y_train.astype(np.float32)
+y_train = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1).to(device)
+y_test = y_test.astype(np.float32)
+y_test = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1).to(device)
+Z = Z.astype(np.float32)
+Z = torch.tensor(Z, dtype=torch.float32).to(device)
+
+
+print(f"\n-----------------Neural Network------------------")
+
+pop_gen_model = PopulationGeneticsModel(learning_rate=0.001, epochs=100, batch_size=128)
+pop_gen_model.train(X_train, y_train, X_test, y_test)
+
+prediction_results = pop_gen_model.predict_with_uncertainty(Z, n_simulations=100)
+print("Prediction Results")
+print(prediction_results)
+
+evaluation_results = pop_gen_model.evaluate(X_test, y_test)
+print(" ")
+print(evaluation_results)
+
 
 '''
 # Get numerical feature importances
