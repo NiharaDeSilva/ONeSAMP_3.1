@@ -1,0 +1,12 @@
+----- 1.2159347534179688e-05 seconds -----
+2.6.0+cu124
+12.4
+True
+
+-----------------Neural Network------------------
+Prediction Results
+{np.float64(0.32)}
+ 
+{'MAE': np.float32(198.65), 'MSE': np.float32(40455.82), 'RMSE': np.float32(201.14)}
+
+-----------------RANDOM FOREST------------------

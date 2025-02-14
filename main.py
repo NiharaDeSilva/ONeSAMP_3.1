@@ -5,7 +5,7 @@ import numpy as np
 import time
 import sys
 import shutil
-sys.path.append("../../WFsim")
+sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
 from wfsim import run_simulation
 from sklearn.ensemble import RandomForestRegressor
 from statistics import statisticsClass
@@ -17,6 +17,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import concurrent.futures
 from nn import PopulationGeneticsModel
 import torch
+
+print(torch.__version__)  # PyTorch version
+print(torch.version.cuda)
+print(torch.cuda.is_available())
 
 NUMBER_OF_STATISTICS = 5
 t = 30

@@ -30,7 +30,7 @@ class FeedForwardNN(nn.Module):
         return self.model(x)
 
 class PopulationGeneticsModel:
-    def __init__(self, learning_rate=0.001, epochs=100, batch_size=128):
+    def __init__(self, learning_rate=0.001, epochs=100, batch_size=64):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = FeedForwardNN().to(self.device)
         self.loss_fn = nn.MSELoss()
