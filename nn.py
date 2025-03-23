@@ -97,13 +97,13 @@ class PopulationGeneticsModel:
                 pred = self.model(Z_perturbed).cpu().numpy().flatten()[0]
                 predictions[i] = pred
 
-        return {
+        return [
             round(np.min(predictions), 2),
             round(np.max(predictions), 2),
             round(np.mean(predictions), 2),
             round(np.median(predictions), 2),
             round(np.percentile(predictions, 2.5) ,2), round(np.percentile(predictions, 97.5),2)
-        }
+        ]
 
 
 
