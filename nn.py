@@ -4,33 +4,47 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tqdm
+import torch.nn.init as init
 
 '''
 Feed Forward Neural Network
 '''
 
+def init_weights(m):
+    if isinstance(m, nn.Linear):  # Apply only to Linear layers
+        init.kaiming_uniform_(m.weight, nonlinearity='relu')  # Kaiming He initialization
+        if m.bias is not None:
+            init.zeros_(m.bias)  # Set bias to zero
+
+
 class FeedForwardNN(nn.Module):
+
     def __init__(self, input_size=5):
         super(FeedForwardNN, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(input_size, 100),
+            nn.Linear(input_size, 125),
             nn.ReLU(),
-            nn.Linear(100, 200),
+            nn.Linear(125, 250),
             nn.ReLU(),
-            nn.Linear(200, 100),
+            nn.Linear(250, 500),
             nn.ReLU(),
-            nn.Linear(100, 20),
+            nn.Linear(500, 125),
             nn.ReLU(),
-            nn.Linear(20, 5),
+            nn.Linear(125, 25),
+            nn.ReLU(),
+            nn.Linear(25, 5),
             nn.ReLU(),
             nn.Linear(5, 1)
         )
+        self.apply(init_weights)
+
+
 
     def forward(self, x):
         return self.model(x)
 
 class PopulationGeneticsModel:
-    def __init__(self, learning_rate=0.001, epochs=100, batch_size=64):
+    def __init__(self, learning_rate=0.00005, epochs=100, batch_size=32):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = FeedForwardNN().to(self.device)
         self.loss_fn = nn.MSELoss()
@@ -55,6 +69,7 @@ class PopulationGeneticsModel:
 
                     self.optimizer.zero_grad()
                     loss.backward()
+
                     self.optimizer.step()
                     bar.set_postfix(mse=float(loss))
 
@@ -65,6 +80,8 @@ class PopulationGeneticsModel:
             if mse < self.best_mse:
                 self.best_mse = mse
                 self.best_weights = copy.deepcopy(self.model.state_dict())
+            print(f"Epoch {epoch+1}: Training Loss = {loss.item()}")
+
 
         self.model.load_state_dict(self.best_weights)
 
@@ -74,8 +91,15 @@ class PopulationGeneticsModel:
             y_pred = self.model(X_test).cpu().numpy()
             y_test = y_test.cpu().numpy()
 
+        #y_pred = y_scaler.inverse_transform(y_pred.reshape(-1, 1))
+        #y_test = y_scaler.inverse_transform(y_test.reshape(-1, 1))
+        
         absolute_errors = np.abs(y_pred - y_test)
-        mse = np.mean((y_pred - y_test) ** 2)
+        squared_errors = (y_pred - y_test) ** 2
+        for i in range(min(10, len(squared_errors))):  # Print only first 5 rows
+            print(f"Row {i+1}: True={y_test[i]}, Pred={y_pred[i]}, Error²={squared_errors[i]}")
+
+        mse = np.mean(squared_errors) 
         rmse = np.sqrt(mse)
 
         stats = {
@@ -96,7 +120,6 @@ class PopulationGeneticsModel:
             with torch.no_grad():
                 pred = self.model(Z_perturbed).cpu().numpy().flatten()[0]
                 predictions[i] = pred
-
         return [
             round(np.min(predictions), 2),
             round(np.max(predictions), 2),

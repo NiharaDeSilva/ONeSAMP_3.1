@@ -17,6 +17,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import concurrent.futures
 from nn import PopulationGeneticsModel
 import torch
+from sklearn.preprocessing import StandardScaler
 
 print(torch.__version__)  # PyTorch version
 print(torch.version.cuda)
@@ -30,6 +31,7 @@ OUTPUTFILENAME = "priors.txt"
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "temp"
 path = os.path.join("./", directory)
+results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1/output/V30/"
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
@@ -51,11 +53,11 @@ parser.add_argument("--uT", type=float, help="Upper of Theta Range")
 parser.add_argument("--s", type=int, help="Number of OneSamp Trials")
 parser.add_argument("--lD", type=float, help="Lower of Duration Range")
 parser.add_argument("--uD", type=float, help="Upper of Duration Range")
-# parser.add_argument("--i", type=float, help="Missing data for individuals")
-# parser.add_argument("--l", type=float, help="Missing data for loci")
+#parser.add_argument("--i", type=float, help="Missing data for individuals")
+#parser.add_argument("--l", type=float, help="Missing data for loci")
 parser.add_argument("--o", type=str, help="The File Name")
-parser.add_argument("--t", type=int, help="Repeat times")
-parser.add_argument("--n", type=bool, help="whether to filter the monomorphic loci", default=False)
+#parser.add_argument("--t", type=int, help="Repeat times")
+#parser.add_argument("--n", type=bool, help="whether to filter the monomorphic loci", default=False)
 # parser.add_argument("--md", type=str, help="Model Name")
 
 args = parser.parse_args()
@@ -63,8 +65,8 @@ args = parser.parse_args()
 #########################################
 # INITIALIZING PARAMETERS
 #########################################
-if (args.t):
-    t = int(args.t)
+#if (args.t):
+#    t = int(args.t)
 
 minAlleleFreq = 0.05
 if (args.m):
@@ -107,7 +109,7 @@ if (args.uT):
 
 rangeTheta = "%f,%f" % (lowerTheta, upperTheta)
 
-numOneSampTrials = 20
+numOneSampTrials = 20000
 if (args.s):
     numOneSampTrials = int(args.s)
 
@@ -119,18 +121,18 @@ upperDuration = 8
 if (args.uD):
     upperDuration = float(args.uD)
 
-# indivMissing = .2
-# if (args.i):
-#     indivMissing = float(args.i)
-#
-# lociMissing = .2
-# if (args.l):
-#     lociMissing = float(args.l)
+#indivMissing = .2
+#if (args.i):
+#    indivMissing = float(args.i)
+
+#lociMissing = .2
+#if (args.l):
+#    lociMissing = float(args.l)
 
 rangeDuration = "%f,%f" % (lowerDuration, upperDuration)
 
 # fileName = "oneSampIn"
-fileName = "data/genePop50x80"
+#fileName = "data/genePop50x80"
 if (args.o):
     fileName = str(args.o)
 else:
@@ -152,8 +154,8 @@ inputFileStatistics = statisticsClass()
 inputFileStatistics.readData(fileName)
 # inputFileStatistics.filterIndividuals(indivMissing)
 # inputFileStatistics.filterLoci(lociMissing)
-if (args.n):
-    inputFileStatistics.filterMonomorphicLoci()
+#if (args.n):
+#    inputFileStatistics.filterMonomorphicLoci()
 
 inputFileStatistics.test_stat1()
 inputFileStatistics.test_stat2()
@@ -169,7 +171,7 @@ textList = [str(inputFileStatistics.stat1), str(inputFileStatistics.stat2), str(
              str(inputFileStatistics.stat4), str(inputFileStatistics.stat5)]
 inputStatsList = textList
 
-inputPopStats = "inputPopStats_" + getName(fileName) + "_" + str(t)
+inputPopStats = results_path + "inputPopStats_" + getName(fileName)
 with open(inputPopStats, 'w') as fileINPUT:
     fileINPUT.write('\t'.join(textList[0:]) + '\t')
 fileINPUT.close()
@@ -220,16 +222,18 @@ def processRandomPopulation(x):
     random_index = random.randint(0, num_evens - 1)
     target_Ne = Ne_left + random_index * 2
     target_Ne = f"{target_Ne:05d}"
+    #cmd = "%s -u%.9f -v%s -rC -l%d -i%d -d%s -s -t1 -b%s -f%f -o1 -p > %s" % (POPULATION_GENERATOR, mutationRate, rangeTheta, loci, sampleSize, rangeDuration, target_Ne, minAlleleFreq, intermediateFile)
+    #print(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
     run_simulation(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
+    '''
+    if (DEBUG):
+        print(cmd)
 
-    # if (DEBUG):
-    #     print(cmd)
-    #
-    # returned_value = os.system(cmd)
-    #
-    # if returned_value:
-    #     print("ERROR:main:Refactor did not run")
-
+    returned_value = os.system(cmd)
+    
+    if returned_value:
+        print("ERROR:main:Refactor did not run")
+    '''
 
     refactorFileStatistics = statisticsClass()
 
@@ -239,14 +243,15 @@ def processRandomPopulation(x):
     refactorFileStatistics.test_stat1()
     refactorFileStatistics.test_stat2()
     refactorFileStatistics.test_stat3()
-    refactorFileStatistics.test_stat5()
     refactorFileStatistics.test_stat4()
+    refactorFileStatistics.test_stat5()
 
     statistics1[x] = refactorFileStatistics.stat1
     statistics2[x] = refactorFileStatistics.stat2
     statistics3[x] = refactorFileStatistics.stat3
-    statistics5[x] = refactorFileStatistics.stat5
     statistics4[x] = refactorFileStatistics.stat4
+    statistics5[x] = refactorFileStatistics.stat5
+
 
     # Making file with stats from all populations
     textList = [str(refactorFileStatistics.NE_VALUE), str(refactorFileStatistics.stat1),
@@ -287,16 +292,21 @@ except FileNotFoundError:
 ########################################
 
 # Assign input and all population stats to dataframes with column names
-allPopStatistics = pd.DataFrame(results_list, columns=['Ne', 'Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_disequilibrium'])
-inputStatsList = pd.DataFrame([inputStatsList], columns=['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_disequilibrium'])
+allPopStatistics = pd.DataFrame(results_list, columns=['Ne', 'Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_equilibrium'])
+inputStatsList = pd.DataFrame([inputStatsList], columns=['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_equilibrium'])
+
+allPopStats = results_path + "allPopStats_" + getName(fileName) 
+allPopStatistics.to_csv(allPopStats, index=False)
+
+
 
 # Assign dependent and independent variables for regression model
-Z = np.array(inputStatsList[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_disequilibrium']])
-X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_disequilibrium']])
+Z = np.array(inputStatsList[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_equilibrium']])
+X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance','Gametic_equilibrium']])
 y = np.array(allPopStatistics['Ne'])
 y = np.array([float(value) for value in y if float(value) > 0])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=40)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=40)
 
 # #Normalize the data
 # scaler = StandardScaler()
@@ -309,7 +319,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 # # RANDOM FOREST REGRESSION
 # ##########################
 '''
-print(f"\n-----------------RANDOM FOREST------------------")
+print(f"\n-----------------RANDOM FOREST------------
 
 # Initialize the Random Forest Regressor
 rf_regressor = RandomForestRegressor(n_estimators=1000, max_depth=80, random_state=42)
@@ -347,10 +357,21 @@ print(f"MSE: {mse:.2f}, RMSE: {rmse:.2f}, MAE: {mae:.2f}")
 '''
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#x_scaler = StandardScaler()
+#y_scaler = StandardScaler()
+
 
 # Convert to PyTorch tensors
 X_train = X_train.astype(np.float32)
 X_test = X_test.astype(np.float32)
+
+#X_train = x_scaler.fit_transform(X_train)
+#X_test = x_scaler.transform(X_test)  # Use same scaler on test data
+#Z = x_scaler.transform(Z) 
+
+#y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
+#y_test = y_scaler.transform(y_test.reshape(-1, 1))
+
 X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
 X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
 y_train = y_train.astype(np.float32)
@@ -363,7 +384,7 @@ Z = torch.tensor(Z, dtype=torch.float32).to(device)
 
 print(f"\n-----------------Neural Network------------------")
 
-pop_gen_model = PopulationGeneticsModel(learning_rate=0.001, epochs=100, batch_size=128)
+pop_gen_model = PopulationGeneticsModel(learning_rate=0.00005, epochs=100, batch_size=32)
 pop_gen_model.train(X_train, y_train, X_test, y_test)
 
 prediction_results = pop_gen_model.predict_with_uncertainty(Z, n_simulations=100)
@@ -374,8 +395,8 @@ evaluation_results = pop_gen_model.evaluate(X_test, y_test)
 print(" ")
 print(evaluation_results)
 
-
 '''
+
 # Get numerical feature importances
 importances = list(rf_regressor.feature_importances_)
 
@@ -388,11 +409,10 @@ feature_importances = sorted(feature_importances, key=lambda x: x[1], reverse=Tr
 # Print out the feature and importances
 print("\nFeature importance")
 [print('Variable: {:30} : {}'.format(*pair)) for pair in feature_importances]
-'''
 
+'''
 print("")
 print("----- %s seconds -----" % (time.time() - start_time))
-
 
 
 
