@@ -15,9 +15,10 @@ import random
 import multiprocessing
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import concurrent.futures
-from nn import PopulationGeneticsModel
 import torch
 from sklearn.preprocessing import StandardScaler
+from models import PopulationGeneticsModel, train_xgboost, ensemble_predict
+
 
 print(torch.__version__)  # PyTorch version
 print(torch.version.cuda)
@@ -306,7 +307,7 @@ X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_
 y = np.array(allPopStatistics['Ne'])
 y = np.array([float(value) for value in y if float(value) > 0])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=40)
+X_train_np, X_test_np, y_train_np, y_test_np = train_test_split(X, y, test_size=0.3, random_state=40)
 
 # #Normalize the data
 # scaler = StandardScaler()
@@ -361,10 +362,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 #y_scaler = StandardScaler()
 
 
-# Convert to PyTorch tensors
-X_train = X_train.astype(np.float32)
-X_test = X_test.astype(np.float32)
-
 #X_train = x_scaler.fit_transform(X_train)
 #X_test = x_scaler.transform(X_test)  # Use same scaler on test data
 #Z = x_scaler.transform(Z) 
@@ -372,28 +369,41 @@ X_test = X_test.astype(np.float32)
 #y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
 #y_test = y_scaler.transform(y_test.reshape(-1, 1))
 
-X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
-X_train = torch.tensor(X_train, dtype=torch.float32).to(device)
-y_train = y_train.astype(np.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1).to(device)
-y_test = y_test.astype(np.float32)
-y_test = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1).to(device)
-Z = Z.astype(np.float32)
-Z = torch.tensor(Z, dtype=torch.float32).to(device)
+X_train = torch.tensor(X_train_np.astype(np.float32), dtype=torch.float32).to(device)
+X_test = torch.tensor(X_test_np.astype(np.float32), dtype=torch.float32).to(device)
+y_train = torch.tensor(y_train_np.astype(np.float32).reshape(-1, 1), dtype=torch.float32).to(device)
+y_test = torch.tensor(y_test_np.astype(np.float32).reshape(-1, 1), dtype=torch.float32).to(device)
+Z_tensor = torch.tensor(Z.astype(np.float32), dtype=torch.float32).to(device)
 
 
+# ---- Train models ----
 print(f"\n-----------------Neural Network------------------")
+nn_model = PopulationGeneticsModel(input_size=X.shape[1])
+nn_model.train(X_train, y_train, X_test, y_test)
+nn_pred = nn_model.predict(X_test)
 
-pop_gen_model = PopulationGeneticsModel(learning_rate=0.00005, epochs=100, batch_size=32)
-pop_gen_model.train(X_train, y_train, X_test, y_test)
+print(f"\n-----------------XGBoost------------------")
+xgb_model = train_xgboost(X_train_np, y_train_np, X_test_np, y_test_np)
+xgb_pred = xgb_model.predict(X_test_np)
 
-prediction_results = pop_gen_model.predict_with_uncertainty(Z, n_simulations=100)
-print("Prediction Results")
-print(prediction_results)
+# ---- Ensemble Predictions ----
+ensemble_pred = ensemble_predict(nn_pred, xgb_pred)
+mae = np.mean(np.abs(ensemble_pred - y_test_np))
+mse = np.mean((ensemble_pred - y_test_np) ** 2)
+rmse = np.sqrt(mse)
 
-evaluation_results = pop_gen_model.evaluate(X_test, y_test)
-print(" ")
-print(evaluation_results)
+print(f"\n-----------------Ensemble Results------------------")
+print(f"MAE: {mae:.4f}")
+print(f"MSE: {mse:.4f}")
+print(f"RMSE: {rmse:.4f}")
+
+# ---- Predict on Z (new unseen data) ----
+Z_nn_pred = nn_model.predict(Z_tensor)
+Z_xgb_pred = xgb_model.predict(Z)
+Z_ensemble = ensemble_predict(Z_nn_pred, Z_xgb_pred)
+
+print("\nPrediction on Z (ensemble):")
+print(Z_ensemble)
 
 '''
 
