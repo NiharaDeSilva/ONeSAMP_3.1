@@ -8,18 +8,19 @@ import shutil
 sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
 from wfsim import run_simulation
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import RandomizedSearchCV
 from xgboost import XGBRegressor, plot_importance
 from statistics import statisticsClass
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 import random
 import multiprocessing
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import concurrent.futures
 import torch
 from sklearn.preprocessing import StandardScaler
-from nn import PopulationGeneticsModel, train_xgboost, ensemble_predict
+from sklearn.linear_model import Ridge, Lasso
+from sklearn.utils import resample
+#from nn import PopulationGeneticsModel, train_xgboost, ensemble_predict
 
 
 # print(torch.__version__)  # PyTorch version
@@ -27,14 +28,14 @@ from nn import PopulationGeneticsModel, train_xgboost, ensemble_predict
 # print(torch.cuda.is_available())
 
 NUMBER_OF_STATISTICS = 5
-t = 30
+t = 1
 DEBUG = 0  ## BOUCHER: Change this to 1 for debuggin mode
 OUTPUTFILENAME = "priors.txt"
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "temp"
 path = os.path.join("./", directory)
-results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1/output/V30/"
+results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3/output_rx/V10/"
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
@@ -56,11 +57,11 @@ parser.add_argument("--uT", type=float, help="Upper of Theta Range")
 parser.add_argument("--s", type=int, help="Number of OneSamp Trials")
 parser.add_argument("--lD", type=float, help="Lower of Duration Range")
 parser.add_argument("--uD", type=float, help="Upper of Duration Range")
-#parser.add_argument("--i", type=float, help="Missing data for individuals")
-#parser.add_argument("--l", type=float, help="Missing data for loci")
+parser.add_argument("--i", type=float, help="Missing data for individuals")
+parser.add_argument("--l", type=float, help="Missing data for loci")
 parser.add_argument("--o", type=str, help="The File Name")
-#parser.add_argument("--t", type=int, help="Repeat times")
-#parser.add_argument("--n", type=bool, help="whether to filter the monomorphic loci", default=False)
+parser.add_argument("--t", type=int, help="Repeat times")
+parser.add_argument("--n", type=bool, help="whether to filter the monomorphic loci", default=False)
 # parser.add_argument("--md", type=str, help="Model Name")
 
 args = parser.parse_args()
@@ -124,17 +125,17 @@ upperDuration = 8
 if (args.uD):
     upperDuration = float(args.uD)
 
-#indivMissing = .2
-#if (args.i):
-#    indivMissing = float(args.i)
+indivMissing = .2
+if (args.i):
+    indivMissing = float(args.i)
 
-#lociMissing = .2
-#if (args.l):
-#    lociMissing = float(args.l)
+lociMissing = .2
+if (args.l):
+    lociMissing = float(args.l)
 
 rangeDuration = "%f,%f" % (lowerDuration, upperDuration)
 
-# fileName = "oneSampIn"
+fileName = "oneSampIn"
 #fileName = "data/genePop50x80"
 if (args.o):
     fileName = str(args.o)
@@ -155,10 +156,10 @@ rangeTheta = "%f,%f" % (lowerTheta, upperTheta)
 inputFileStatistics = statisticsClass()
 
 inputFileStatistics.readData(fileName)
-# inputFileStatistics.filterIndividuals(indivMissing)
-# inputFileStatistics.filterLoci(lociMissing)
-#if (args.n):
-#    inputFileStatistics.filterMonomorphicLoci()
+inputFileStatistics.filterIndividuals(indivMissing)
+inputFileStatistics.filterLoci(lociMissing)
+if (args.n):
+    inputFileStatistics.filterMonomorphicLoci()
 
 inputFileStatistics.test_stat1()
 inputFileStatistics.test_stat2()
@@ -225,10 +226,10 @@ def processRandomPopulation(x):
     random_index = random.randint(0, num_evens - 1)
     target_Ne = Ne_left + random_index * 2
     target_Ne = f"{target_Ne:05d}"
-    #cmd = "%s -u%.9f -v%s -rC -l%d -i%d -d%s -s -t1 -b%s -f%f -o1 -p > %s" % (POPULATION_GENERATOR, mutationRate, rangeTheta, loci, sampleSize, rangeDuration, target_Ne, minAlleleFreq, intermediateFile)
+    cmd = "%s -u%.9f -v%s -rC -l%d -i%d -d%s -s -t1 -b%s -f%f -o1 -p > %s" % (POPULATION_GENERATOR, mutationRate, rangeTheta, loci, sampleSize, rangeDuration, target_Ne, minAlleleFreq, intermediateFile)
     #print(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
-    run_simulation(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
-    '''
+    #run_simulation(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
+    
     if (DEBUG):
         print(cmd)
 
@@ -236,24 +237,24 @@ def processRandomPopulation(x):
     
     if returned_value:
         print("ERROR:main:Refactor did not run")
-    '''
+    
 
     refactorFileStatistics = statisticsClass()
 
     refactorFileStatistics.readData(intermediateFile)
-    # refactorFileStatistics.filterIndividuals(indivMissing)
-    # refactorFileStatistics.filterLoci(lociMissing)
+    refactorFileStatistics.filterIndividuals(indivMissing)
+    refactorFileStatistics.filterLoci(lociMissing)
     refactorFileStatistics.test_stat1()
     refactorFileStatistics.test_stat2()
     refactorFileStatistics.test_stat3()
-    refactorFileStatistics.test_stat4()
     refactorFileStatistics.test_stat5()
+    refactorFileStatistics.test_stat4()
 
     statistics1[x] = refactorFileStatistics.stat1
     statistics2[x] = refactorFileStatistics.stat2
     statistics3[x] = refactorFileStatistics.stat3
-    statistics4[x] = refactorFileStatistics.stat4
     statistics5[x] = refactorFileStatistics.stat5
+    statistics4[x] = refactorFileStatistics.stat4
 
 
     # Making file with stats from all populations
@@ -304,18 +305,20 @@ allPopStatistics.to_csv(allPopStats, index=False)
 
 
 # Assign dependent and independent variables for regression model
-Z = np.array(inputStatsList[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_equilibrium']])
-X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance','Gametic_equilibrium']])
+Z = np.array(inputStatsList[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Gametic_equilibrium']].astype(float).to_numpy())
+X = np.array(allPopStatistics[['Emean_exhyt', 'Fix_index', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance','Gametic_equilibrium']].astype(float).to_numpy())
 y = np.array(allPopStatistics['Ne'])
 y = np.array([float(value) for value in y if float(value) > 0])
 
 X_train_np, X_test_np, y_train_np, y_test_np = train_test_split(X, y, test_size=0.3, random_state=40)
 
-# #Normalize the data
-# scaler = StandardScaler()
-# X_scaled = scaler.fit_transform(X)
-# Z_scaled = scaler.fit_transform(Z)
-#
+# Normalize the data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_np)
+X_test_scaled = scaler.fit_transform(X_test_np)
+Z_scaled = scaler.transform(Z)
+ 
+
 # #Apply box-cox transformation
 # y_transformed, lambda_value = boxcox(y)
 # ##########################
@@ -326,11 +329,11 @@ print(f"\n-----------------RANDOM FOREST------------")
 
 # Define the hyperparameter search space
 param_dist = {
-    'n_estimators': [1000],
-    'max_depth': [40, 80],
-    'min_samples_split': [5, 10],
-    'min_samples_leaf': [2, 4],
-    'max_features': ['auto', 'sqrt'],
+    'n_estimators': [2500, 5000],
+    'max_depth': [80],
+    'min_samples_split': [2],
+    'min_samples_leaf': [2],
+    'max_features': ['log2'],
     'bootstrap': [True]
 }
 
@@ -350,23 +353,30 @@ random_search = RandomizedSearchCV(
 )
 
 # Perform the search
-random_search.fit(X_train_np, y_train_np.ravel())
+#random_search.fit(X_train_np, y_train_np.ravel())
+random_search.fit(X_train_scaled, y_train_np.ravel())
 
 # Extract the best estimator
 best_rf = random_search.best_estimator_
 
 # Predict using the best model
-y_pred = best_rf.predict(X_test_np)
+#y_pred = best_rf.predict(X_test_np)
+y_pred = best_rf.predict(X_test_scaled)
 
 # Predict the Ne value for input population
-rf_prediction = best_rf.predict(Z)
+#rf_prediction = best_rf.predict(Z)
+rf_prediction = best_rf.predict(Z_scaled)
+
 
 mse = mean_squared_error(y_test_np, y_pred)
 rmse = np.sqrt(mse)
 mae = mean_absolute_error(y_test_np, y_pred)
+r2 = r2_score(y_test_np, y_pred)
 
 # Calculate confidence interval, Get the predictions from each tree for the new data point
-tree_predictions = np.array([tree.predict(Z) for tree in best_rf.estimators_])
+#tree_predictions = np.array([tree.predict(Z) for tree in best_rf.estimators_])
+tree_predictions = np.array([tree.predict(Z_scaled) for tree in best_rf.estimators_])
+
 
 median_prediction = np.median(tree_predictions)
 mean_prediction = np.mean(tree_predictions)
@@ -378,9 +388,16 @@ lower_bound = np.percentile(tree_predictions, 2.5)
 upper_bound = np.percentile(tree_predictions, 97.5)
 
 print("Prediction Results")
+print("Tuned Parameters Selected:")
+print(random_search.best_params_)
+print(" ")
+print("Best Parameters Found by RandomizedSearchCV:")
+for param, value in best_rf.get_params().items():
+    print(f"{param}: {value}")
+
 print(f"{min_prediction} {max_prediction} {mean_prediction} {median_prediction} {lower_bound} {upper_bound}")
 print(" ")
-print(f"MSE: {mse:.2f}, RMSE: {rmse:.2f}, MAE: {mae:.2f}")
+print(f"MSE: {mse:.2f}, RMSE: {rmse:.2f}, MAE: {mae:.2f}, R2: {r2:.2f}")
 
 # Get numerical feature importances
 importances = list(best_rf.feature_importances_)
@@ -424,33 +441,48 @@ nn_pred = nn_model.predict(X_test)
 print(f"\n-----------------XGBoost------------------")
 
 
-# Initialize the XGBoost Regressor
-xgb_model = XGBRegressor(
-    n_estimators=500,
-    max_depth=4,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    random_state=42,
+param_dist = {
+    'n_estimators': [2000],
+    'learning_rate': [0.01],
+    'max_depth': [8],
+    'min_child_weight': [3],
+    'subsample': [0.6],
+    'colsample_bytree': [0.8]
+}
+
+xgb_model = XGBRegressor(random_state=42)
+random_search = RandomizedSearchCV(
+    estimator=xgb_model,
+    param_distributions=param_dist,
+    n_iter=50,
+    scoring='neg_mean_squared_error',
+    cv=3,
+    verbose=2,
     n_jobs=-1
 )
 
+random_search.fit(X_train_scaled, y_train_np)
+xgb_best_model = random_search.best_estimator_
+
 # Flatten y just in case
-y_train = y_train_np.ravel()
+#y_train = y_train_np.ravel()
 
 # Train the model
-xgb_model.fit(X_train_np, y_train)
+#xgb_model.fit(X_train_np, y_train)
+xgb_best_model.fit(X_train_scaled, y_train_np.ravel())
 
 # Predict on test data
-y_pred_xgb = xgb_model.predict(X_test_np)
+#y_pred_xgb = xgb_model.predict(X_test_np)
+y_pred_xgb = xgb_best_model.predict(X_test_scaled)
+
 
 # Predict on new data (Z)
-xgb_prediction = xgb_model.predict(Z)
+xgb_prediction_bc = xgb_best_model.predict(Z_scaled)
 
 # Manual tree-by-tree predictions to estimate uncertainty
 tree_preds = np.array([
-    xgb_model.predict(Z, iteration_range=(i, i+1))
-    for i in range(xgb_model.get_booster().num_boosted_rounds())
+    xgb_best_model.predict(Z_scaled, iteration_range=(i, i+1))
+    for i in range(xgb_best_model.get_booster().num_boosted_rounds())
 ]).reshape(-1)
 
 # Compute statistics
@@ -469,30 +501,100 @@ print(f"Mean:         {mean_pred:.4f}")
 print(f"Median:       {median_pred:.4f}")
 print(f"95% CI:       [{lower_bound:.4f}, {upper_bound:.4f}]")
 
+
 # Evaluate performance
 mse_xgb = mean_squared_error(y_test_np, y_pred_xgb)
 rmse_xgb = np.sqrt(mse_xgb)
 mae_xgb = mean_absolute_error(y_test_np, y_pred_xgb)
+r2_xgb = r2_score(y_test_np, y_pred_xgb)
 
-print("XGBoost Prediction Metrics")
-print(f"MSE: {mse_xgb:.2f}, RMSE: {rmse_xgb:.2f}, MAE: {mae_xgb:.2f}")
-print(f"\nXGBoost Prediction on Z: {xgb_prediction.round(2)}")
+print("\nXGBoost Prediction Metrics")
+print(f"MSE: {mse_xgb:.2f}, RMSE: {rmse_xgb:.2f}, MAE: {mae_xgb:.2f}, R2: {r2_xgb:.2f}")
+#print(f"\nXGBoost Prediction on Z: {xgb_prediction_bc.round(2)}")
 
-# -----------------------------
+print("\nBest Parameters Found by RandomizedSearchCV:")
+print(random_search.best_params_)
+
+print("\nAll Parameters in the Best XGBoost Model:")
+for param, value in best_model.get_params().items():
+    print(f"{param}: {value}")
+
+# -------------------------------
 # Feature Importances (Numerical)
-# -----------------------------
+# -------------------------------
 importances = xgb_model.feature_importances_
 feature_importances = [(feature, round(score, 2)) for feature, score in zip(inputStatsList.columns, importances)]
 feature_importances = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
 print("\nXGBoost Feature Importances:")
-[print(f"Variable: {f:30} | Importance: {imp}") for f, imp in feature_importances]
+[print(f"Variable: {f:30} | {imp}") for f, imp in feature_importances]
 
 print("")
 print("----- %s seconds -----" % (time.time() - start_time))
 
 
 
+print(f"\n-----------------Lasso & Ridge Regression------------------")
+
+
+# ---- STEP 4: Ridge Regression ----
+ridge_params = {'alpha': [0.01, 0.1, 1, 10, 100]}
+ridge = Ridge()
+ridge_cv = GridSearchCV(ridge, ridge_params, cv=5)
+ridge_cv.fit(X_train_scaled, y_train_np)
+ridge_rmse = np.sqrt(mean_squared_error(y_test_np, ridge_cv.best_estimator_.predict(X_test_scaled)))
+ridge_mae = mean_absolute_error(y_test_np, ridge_cv.best_estimator_.predict(X_test_scaled))
+ridge_r2 = r2_score(y_test_np, ridge_cv.best_estimator_.predict(X_test_scaled))
+
+# ---- STEP 5: Lasso Regression ----
+lasso_params = {'alpha': [0.01, 0.1, 1, 10, 100]}
+lasso = Lasso(max_iter=10000)
+lasso_cv = GridSearchCV(lasso, lasso_params, cv=5)
+lasso_cv.fit(X_train_scaled, y_train_np)
+lasso_rmse = np.sqrt(mean_squared_error(y_test_np, lasso_cv.best_estimator_.predict(X_test_scaled)))
+lasso_mae = mean_absolute_error(y_test_np, lasso_cv.best_estimator_.predict(X_test_scaled))
+lasso_r2 = r2_score(y_test_np, lasso_cv.best_estimator_.predict(X_test_scaled))
+
+# ---- Bootstrap-Based Prediction Statistics ----
+def predict_with_stats(model, X_train, y_train, new_sample, n_bootstrap=1000, alpha=0.05):
+    predictions = []
+    for _ in range(n_bootstrap):
+        X_boot, y_boot = resample(X_train, y_train)
+        model.fit(X_boot, y_boot)
+        pred = model.predict(new_sample)[0]
+        predictions.append(pred)
+    predictions = np.array(predictions)
+    lower = np.percentile(predictions, 100 * (alpha / 2))
+    upper = np.percentile(predictions, 100 * (1 - alpha / 2))
+    return {
+        'mean': np.mean(predictions),
+        'median': np.median(predictions),
+        'min': np.min(predictions),
+        'max': np.max(predictions),
+        '95% CI': (lower, upper)
+    }
+
+def print_stats_inline(name, stats):
+    print(f"{name} => Mean: {stats['mean']:.4f}, Median: {stats['median']:.4f}, "
+          f"Min: {stats['min']:.4f}, Max: {stats['max']:.4f}, "
+          f"95% CI: ({stats['95% CI'][0]:.4f}, {stats['95% CI'][1]:.4f})")
+
+# ---- Prediction on a new point Z_scaled (must be shape (1, n_features)) ----
+ridge_stats = predict_with_stats(ridge_cv.best_estimator_, X_train_scaled, y_train_np, Z_scaled)
+lasso_stats = predict_with_stats(lasso_cv.best_estimator_, X_train_scaled, y_train_np, Z_scaled)
+
+# ---- Print Results ----
+print(f"Ridge Regression => Best alpha: {ridge_cv.best_params_['alpha']}, "
+      f"RMSE: {ridge_rmse:.4f}, MAE: {ridge_mae:.4f}, R2: {ridge_r2:.4f}")
+print_stats_inline("Ridge", ridge_stats)
+
+print(f"\nLasso Regression => Best alpha: {lasso_cv.best_params_['alpha']}, "
+      f"RMSE: {lasso_rmse:.4f}, MAE: {lasso_mae:.4f}, R2: {lasso_r2:.4f}")
+print_stats_inline("Lasso", lasso_stats)
+
+
+
+print("----- %s seconds -----" % (time.time() - start_time))
 
 # # Fit the linear regression model
 # model = LinearRegression()
