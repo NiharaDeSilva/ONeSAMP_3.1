@@ -1,10 +1,14 @@
-from joblib import load
+import joblib
+from sklearn.utils import resample
+import time
 from statistics import statisticsClass
 import argparse
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import os
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--o", type=str, help="The File Name")
@@ -58,8 +62,8 @@ rf_path = os.path.join(output_path, f"rf_model_{sampleSize}x{loci}.joblib")
 scalar_path = os.path.join(output_path, f"scaler_{sampleSize}x{loci}.joblib")
 
 # --- Load the model and scaler (for future use) ---
-rf_model = joblib.load(os.path.join(rf_path)
-scaler = joblib.load(os.path.join(scalar_path)
+rf_model = joblib.load(rf_path)
+scaler = joblib.load(scalar_path)
 Z_scaled = scaler.transform(Z)
 
 # --- Make predictions ---
@@ -89,7 +93,7 @@ print(f"\n-----------------XGBoost------------------")
 xgb_path = os.path.join(output_path, f"xgb_model_{sampleSize}x{loci}.joblib")
 
 # Load model and scaler
-xgb_model = joblib.load(os.path.join(output_path, f"xgb_model_{sampleSize}x{loci}.joblib"))
+xgb_model = joblib.load(xgb_path)
 
 # Predict again using new Z
 Z_scaled = scaler.transform(Z)
@@ -151,8 +155,8 @@ def print_stats_inline(name, stats):
           f"Min: {stats['min']:.4f}, Max: {stats['max']:.4f}, "
           f"95% CI: ({stats['95% CI'][0]:.4f}, {stats['95% CI'][1]:.4f})")
 
-ridge_loaded = joblib.load(os.path.join(ridge_path)
-lasso_loaded = joblib.load(os.path.join(lass_path)
+ridge_loaded = joblib.load(ridge_path)
+lasso_loaded = joblib.load(lasso_path)
 
 ridge_stats = predict_with_stats(ridge_loaded, X_train_scaled, y_train_np, Z_scaled)
 lasso_stats = predict_with_stats(lasso_loaded, X_train_scaled, y_train_np, Z_scaled)
