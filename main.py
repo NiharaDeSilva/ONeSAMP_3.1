@@ -2,26 +2,25 @@
 import argparse
 import os
 import numpy as np
-import time
-import sys
-import shutil
-sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
-from wfsim import run_simulation
-from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor, plot_importance
-from statistics import statisticsClass
 import pandas as pd
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+import time
 import random
 import multiprocessing
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import concurrent.futures
-import torch
-from sklearn.preprocessing import StandardScaler
+import sys
+import shutil
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor, plot_importance
 from sklearn.linear_model import Ridge, Lasso
+from statistics import statisticsClass
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score, KFold
+from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
+from sklearn.preprocessing import StandardScaler
 from sklearn.utils import resample
 import joblib
-#from nn import PopulationGeneticsModel, train_xgboost, ensemble_predict
+import torch
+#sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
+#from wfsim import run_simulation
 
 
 # print(torch.__version__)  # PyTorch version
@@ -34,8 +33,9 @@ DEBUG = 0  ## BOUCHER: Change this to 1 for debuggin mode
 OUTPUTFILENAME = "priors.txt"
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
-directory = "temp"
-path = os.path.join("./", directory)
+directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
+#directory = "temp"
+path = os.path.join("/", directory)
 #results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/output_100_1/"
 
 POPULATION_GENERATOR = "./build/OneSamp"
@@ -82,11 +82,11 @@ mutationRate = 0.000000012
 if (args.r):
     mutationRate = float(args.r)
 
-lowerNe = 150
+lowerNe = 50
 if (args.lNe):
     lowerNe = int(args.lNe)
 
-upperNe = 250
+upperNe = 150
 if (args.uNe):
     upperNe = int(args.uNe)
 
@@ -137,7 +137,7 @@ if (args.l):
 rangeDuration = "%f,%f" % (lowerDuration, upperDuration)
 
 fileName = "oneSampIn"
-#fileName = "data/genePop50x80"
+
 if (args.o):
     fileName = str(args.o)
 else:
@@ -175,12 +175,14 @@ sampleSize = inputFileStatistics.sampleSize
 textList = [str(inputFileStatistics.stat1), str(inputFileStatistics.stat2), str(inputFileStatistics.stat3),
              str(inputFileStatistics.stat4), str(inputFileStatistics.stat5)]
 inputStatsList = textList
+
 '''
 inputPopStats = results_path + "inputPopStats_" + getName(fileName)
 with open(inputPopStats, 'w') as fileINPUT:
     fileINPUT.write('\t'.join(textList[0:]) + '\t')
 fileINPUT.close()
 '''
+
 if (DEBUG):
     print("Finish calculation of statistics for input population")
 
@@ -191,6 +193,7 @@ if (DEBUG):
 #########################################
 # STARTING ALL POPULATIONS
 #########################################
+
 #Result queue
 results_list = []
 
@@ -230,15 +233,15 @@ def processRandomPopulation(x):
     cmd = "%s -u%.9f -v%s -rC -l%d -i%d -d%s -s -t1 -b%s -f%f -o1 -p > %s" % (POPULATION_GENERATOR, mutationRate, rangeTheta, loci, sampleSize, rangeDuration, target_Ne, minAlleleFreq, intermediateFile)
     #print(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
     #run_simulation(minAlleleFreq, mutationRate,  lowerNe, upperNe, lowerTheta, upperTheta, lowerDuration, upperDuration, loci, sampleSize, intermediateFile)
-    
+
     if (DEBUG):
         print(cmd)
 
     returned_value = os.system(cmd)
-    
+
     if returned_value:
         print("ERROR:main:Refactor did not run")
-    
+
 
     refactorFileStatistics = statisticsClass()
 
@@ -288,6 +291,8 @@ try:
 except FileNotFoundError:
     print(f"Directory '{directory}' not found.")
 
+simulation_time = time.time()
+
 ########################################
 # FINISHING ALL POPULATIONS
 ########################################
@@ -318,7 +323,20 @@ scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train_np)
 X_test_scaled = scaler.fit_transform(X_test_np)
 Z_scaled = scaler.transform(Z)
- 
+
+def evaluate_cv(model, X, y, cv_folds=5):
+    r2_scores = cross_val_score(model, X, y, cv=cv_folds, scoring='r2')
+    rmse_scores = -cross_val_score(model, X, y, cv=cv_folds,
+        scoring=make_scorer(lambda yt, yp: np.sqrt(mean_squared_error(yt, yp)), greater_is_better=False))
+    mae_scores = -cross_val_score(model, X, y, cv=cv_folds,
+        scoring=make_scorer(mean_absolute_error, greater_is_better=False))
+
+    print(f"{model.__class__.__name__} ({cv_folds}-Fold CV) => R²: {r2_scores.mean():.4f} ± {r2_scores.std():.4f}, "
+      f"RMSE: {rmse_scores.mean():.4f} ± {rmse_scores.std():.4f}, "
+      f"MAE: {mae_scores.mean():.4f} ± {mae_scores.std():.4f}")
+
+
+
 
 # -------------------------------
 # Random Forest Regression
@@ -326,7 +344,7 @@ Z_scaled = scaler.transform(Z)
 
 loci = inputFileStatistics.numLoci
 sampleSize = inputFileStatistics.sampleSize
-output_path = (f"/blue/boucher/suhashidesilva/2025/ONeSAMP_3/output_200_1/genePop{sampleSize}x{loci}")
+output_path = (f"/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/output_100_1L/samples/genePop{sampleSize}x{loci}")
 os.makedirs(output_path, exist_ok=True)
 
 print(f"\n-----------------RANDOM FOREST------------")
@@ -334,7 +352,7 @@ print(f"\n-----------------RANDOM FOREST------------")
 # --- Train Random Forest without tuning ---
 rf_model = RandomForestRegressor(
     n_estimators=5000,
-    max_depth=80,
+    max_depth=40,
     min_samples_split=2,
     min_samples_leaf=2,
     max_features='log2',
@@ -346,6 +364,7 @@ rf_model = RandomForestRegressor(
 rf_model.fit(X_train_scaled, y_train_np.ravel())
 
 rf_path = os.path.join(output_path, f"rf_model_{sampleSize}x{loci}.joblib")
+
 scalar_path = os.path.join(output_path, f"scaler_{sampleSize}x{loci}.joblib")
 
 # --- Save the trained model and scaler ---
@@ -381,6 +400,8 @@ print("Prediction Results")
 print(f"Min: {min_prediction:.2f}, Max: {max_prediction:.2f}, Mean: {mean_prediction:.2f}, Median: {median_prediction:.2f}, 95% CI: [{lower_bound:.2f}, {upper_bound:.2f}]")
 print(f"MSE: {mse:.2f}, RMSE: {rmse:.2f}, MAE: {mae:.2f}, R2: {r2:.2f}")
 
+evaluate_cv(rf_model, X_train_scaled, y_train_np.ravel())
+
 # --- Feature importances ---
 importances = rf_model.feature_importances_
 feature_importances = [(feature, round(score, 2)) for feature, score in zip(inputStatsList.columns, importances)]
@@ -389,102 +410,77 @@ feature_importances = sorted(feature_importances, key=lambda x: x[1], reverse=Tr
 print("\nFeature importance")
 [print('Variable: {:30} : {}'.format(*pair)) for pair in feature_importances]
 
+print("----- %s seconds -----" % (time.time() - simulation_time))
 
-'''
-
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#x_scaler = StandardScaler()
-#y_scaler = StandardScaler()
-
-#X_train = x_scaler.fit_transform(X_train)
-#X_test = x_scaler.transform(X_test)  # Use same scaler on test data
-#Z = x_scaler.transform(Z) 
-
-#y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
-#y_test = y_scaler.transform(y_test.reshape(-1, 1))
-
-# X_train = torch.tensor(X_train_np.astype(np.float32), dtype=torch.float32).to(device)
-# X_test = torch.tensor(X_test_np.astype(np.float32), dtype=torch.float32).to(device)
-# y_train = torch.tensor(y_train_np.astype(np.float32).reshape(-1, 1), dtype=torch.float32).to(device)
-# y_test = torch.tensor(y_test_np.astype(np.float32).reshape(-1, 1), dtype=torch.float32).to(device)
-# Z_tensor = torch.tensor(Z.astype(np.float32), dtype=torch.float32).to(device)
-
-
-# ---- Train models ----
-print(f"\n-----------------Neural Network------------------")
-nn_model = PopulationGeneticsModel(input_size=X.shape[1])
-nn_model.train(X_train, y_train, X_test, y_test)
-nn_pred = nn_model.predict(X_test)
-'''
 # -------------------------------
 # XGBoost
 # -------------------------------
 
 print(f"\n-----------------XGBoost------------------")
 
-# --- Define fixed parameters for XGBoost ---
-xgb_model = XGBRegressor(
-    n_estimators=2000,
-    learning_rate=0.01,
-    max_depth=8,
-    min_child_weight=3,
-    subsample=0.6,
-    colsample_bytree=0.8,
-    random_state=42,
-    n_jobs=-1
-)
+base_params = {
+    'n_estimators': 800,
+    'learning_rate': 0.01,
+    'max_depth': 4,
+    'min_child_weight': 10,
+    'subsample': 0.6,
+    'colsample_bytree': 0.8,
+    'reg_lambda': 5,
+    'reg_alpha': 2,
+    'random_state': 42,
+    'n_jobs': -1
+}
 
-# --- Train the model ---
-xgb_model.fit(X_train_scaled, y_train_np.ravel())
+median_params = base_params.copy()
+median_params.update({
+    'max_depth': 8,            # DEEPER
+    'min_child_weight': 5,     # Slightly more flexible
+})
 
-# --- Save the trained model and scaler ---
-xgb_path = os.path.join(output_path, f"xgb_model_{sampleSize}x{loci}.joblib")
+# --- Train lower quantile model (e.g., 10th percentile) ---
+model_lower = XGBRegressor(objective='reg:quantileerror', quantile_alpha=0.025, **base_params)
+model_lower.fit(X_train_scaled, y_train_np.ravel())
 
-joblib.dump(xgb_model, xgb_path)
+# --- Train upper quantile model (e.g., 90th percentile) ---
+model_upper = XGBRegressor(objective='reg:quantileerror', quantile_alpha=0.975, **base_params)
+model_upper.fit(X_train_scaled, y_train_np.ravel())
 
-'''
-# Load model and scaler
-xgb_model = joblib.load(os.path.join(output_path, f"xgb_model_{sampleSize}x{loci}.joblib"))
+# --- Train median model (50th percentile) ---
+model_median = XGBRegressor(objective='reg:quantileerror', quantile_alpha=0.5, **median_params)
+model_median.fit(X_train_scaled, y_train_np.ravel())
 
-# Predict again using new Z
+# --- Save models ---
+joblib.dump(model_lower, os.path.join(output_path, f"xgb_model_lower_{sampleSize}x{loci}.joblib"))
+joblib.dump(model_upper, os.path.join(output_path, f"xgb_model_upper_{sampleSize}x{loci}.joblib"))
+joblib.dump(model_median, os.path.join(output_path, f"xgb_model_median_{sampleSize}x{loci}.joblib"))
+
+# --- Predict on input population Z ---
 Z_scaled = scaler.transform(Z)
-xgb_prediction = xgb_model.predict(Z_scaled)
-'''
+lower_bound = model_lower.predict(Z_scaled)
+upper_bound = model_upper.predict(Z_scaled)
+median_pred = model_median.predict(Z_scaled)
 
-# --- Predict on test set and input population Z ---
-y_pred_xgb = xgb_model.predict(X_test_scaled)
-xgb_prediction = xgb_model.predict(Z_scaled)
+# --- Report (assuming Z has a single row) ---
+print("\nXGBoost Quantile Regression Prediction on Z (Single Input)")
+print(f"Median: {median_pred.item():.4f}, 95% CI: [{lower_bound.item():.4f}, {upper_bound.item():.4f}]")
 
-# --- Estimate prediction uncertainty using per-tree predictions ---
-tree_preds = np.array([
-    xgb_model.predict(Z_scaled, iteration_range=(i, i+1))
-    for i in range(xgb_model.get_booster().num_boosted_rounds())
-]).reshape(-1)
+# --- Evaluate model_median on test set ---
+y_pred_median = model_median.predict(X_test_scaled)
 
-# Compute statistics
-min_pred = np.min(tree_preds)
-max_pred = np.max(tree_preds)
-mean_pred = np.mean(tree_preds)
-median_pred = np.median(tree_preds)
-lower_bound = np.percentile(tree_preds, 2.5)
-upper_bound = np.percentile(tree_preds, 97.5)
-
-# Report
-print("\nXGBoost Prediction on Z (Single Input)")
-print(f"Min: {min_pred:.4f}, Max: {max_pred:.4f}, Mean: {mean_pred:.4f}, Median: {median_pred:.4f}, 95% CI: [{lower_bound:.4f}, {upper_bound:.4f}]")
-
-# Evaluate performance
-mse_xgb = mean_squared_error(y_test_np, y_pred_xgb)
+mse_xgb = mean_squared_error(y_test_np, y_pred_median)
 rmse_xgb = np.sqrt(mse_xgb)
-mae_xgb = mean_absolute_error(y_test_np, y_pred_xgb)
-r2_xgb = r2_score(y_test_np, y_pred_xgb)
+mae_xgb = mean_absolute_error(y_test_np, y_pred_median)
+r2_xgb = r2_score(y_test_np, y_pred_median)
 
-print("\nXGBoost Prediction Metrics")
+print("\nMedian Model (Quantile Regression) Metrics on Test Set")
 print(f"MSE: {mse_xgb:.2f}, RMSE: {rmse_xgb:.2f}, MAE: {mae_xgb:.2f}, R2: {r2_xgb:.2f}")
-#print(f"\nXGBoost Prediction on Z: {xgb_prediction_bc.round(2)}")
 
-# Feature Importances 
-importances = xgb_model.feature_importances_
+# --- Evaluate cross-validation performance ---
+evaluate_cv(model_median, X_train_scaled, y_train_np.ravel())
+
+
+# Feature Importances
+importances = model_median.feature_importances_
 feature_importances = [(feature, round(score, 2)) for feature, score in zip(inputStatsList.columns, importances)]
 feature_importances = sorted(feature_importances, key=lambda x: x[1], reverse=True)
 
@@ -498,6 +494,12 @@ print("")
 # -------------------------------
 
 print(f"\n-----------------Lasso & Ridge Regression------------------")
+
+X_train_path = os.path.join(output_path, f"X_train_scaled_{sampleSize}x{loci}.joblib")
+y_train_path = os.path.join(output_path, f"y_train_{sampleSize}x{loci}.joblib")
+
+joblib.dump(X_train_scaled, X_train_path)
+joblib.dump(y_train_np, y_train_path)
 
 ridge_model = Ridge(alpha=10)
 ridge_model.fit(X_train_scaled, y_train_np)
@@ -559,6 +561,8 @@ lasso_stats = predict_with_stats(lasso_loaded, X_train_scaled, y_train_np, Z_sca
 print(f"Ridge => RMSE: {ridge_rmse:.4f}, MAE: {ridge_mae:.4f}, R2: {ridge_r2:.4f}")
 print_stats_inline("Ridge", ridge_stats)
 
+evaluate_cv(ridge_model, X_train_scaled, y_train_np.ravel())
+
 print("\nRidge Feature Importances:")
 for name, coef in sorted(zip(feature_names, ridge_coef), key=lambda x: abs(x[1]), reverse=True):
     print(f"{name}: {coef:.4f}")
@@ -566,93 +570,11 @@ for name, coef in sorted(zip(feature_names, ridge_coef), key=lambda x: abs(x[1])
 print(f"\nLasso => RMSE: {lasso_rmse:.4f}, MAE: {lasso_mae:.4f}, R2: {lasso_r2:.4f}")
 print_stats_inline("Lasso", lasso_stats)
 
+evaluate_cv(lasso_model, X_train_scaled, y_train_np.ravel())
+
 print("\nLasso Feature Importances:")
 for name, coef in sorted(zip(feature_names, lasso_coef), key=lambda x: abs(x[1]), reverse=True):
     print(f"{name}: {coef:.4f}")
 
 print("")
 print("----- %s seconds -----" % (time.time() - start_time))
-
-# # Fit the linear regression model
-# model = LinearRegression()
-# result = model.fit(X_train, y_train)
-#
-# print(f"\n-----------------LINEAR REGRESSION------------------")
-#
-# #Predict for Test values
-# y_pred = result.predict(X_test)
-# '''
-# # Calculate errors
-# absolute_errors = np.abs(y_pred - y_test)
-# min = np.min(absolute_errors)
-# max = np.max(absolute_errors)
-# q1 = np.percentile(absolute_errors, 25)
-# median = np.percentile(absolute_errors, 50)
-# q3 = np.percentile(absolute_errors, 75)
-# mae = np.mean(absolute_errors)
-#
-# # Compute MSE, RMSE, and MAE for the test set
-# mse_test = mean_squared_error(y_test, y_pred)
-# rmse_test = np.sqrt(mse_test)
-# mae_test = mean_absolute_error(y_test, y_pred)
-# print(f"MSE: {mse_test:.2f}")
-# print(f"RMSE: {rmse_test:.2f}")
-# print(f"MAE: {mae_test:.2f}")
-# '''
-# print(f"{min:.2f} {max:.2f} {median:.2f} {q1:.2f} {q3:.2f}")
-#
-# # Predict the value for the query point
-# # prediction = model.predict(Z_scaled)
-# prediction = model.predict(Z)
-# # y_original_scale = inv_boxcox(prediction, lambda_value)
-# # print("\n Effective population for input population:", y_original_scale[0])
-#
-# ####### CALCULATING CONFIDENCE INTERVAL #########
-#
-# def getConfInterval(model, X_train, y_train, Z, prediction):
-#     # Convert to a numeric array
-#     X_train = X_train.astype(np.float64)
-#     y_train = y_train.astype(np.float64)
-#     Z = Z.astype(np.float64)
-#
-#     # Predictions on the training data
-#     y_train_pred = model.predict(X_train)
-#     # MSE on the training data
-#     mse = np.mean((y_train - y_train_pred) ** 2)
-#     # compute the (X'X)^-1 matrix
-#     XX_inv = np.linalg.inv(np.dot(X_train.T, X_train))
-#     # compute the leverage (hat) matrix for the new data point
-#     hat_matrix = np.dot(np.dot(Z, XX_inv), Z.T)
-#     # calculate the standard error of the prediction
-#     std_error = np.sqrt((1 + hat_matrix) * mse)
-#     # The t value for the 95% confidence interval
-#     t_value = stats.t.ppf(1 - 0.05 / 2, df=len(X_train) - X_train.shape[1] - 1)
-#
-#     # Confidence interval for the new prediction
-#     ci_lower = prediction - t_value * std_error
-#     ci_upper = prediction + t_value * std_error
-#
-#     print(f"95% confidence interval: [{ci_lower[0][0].round(decimals=2)}, {ci_upper[0][0].round(decimals=2)}]")
-#
-# # Output the result
-# print(f"\nPrediction: {prediction.round(decimals=2)}")
-# getConfInterval(model, X_train, y_train, Z, prediction)
-#
-# '''
-# # Get the coefficients for each feature
-# coefficients = model.coef_
-# # coefficients_original_scale = coefficients / lambda_value
-#
-# # Print the coefficients for each feature
-# print("\nCoefficients for each feature:")
-# for feature, coef in zip(inputStatsList.columns, coefficients):
-#     print(f"Variable: {feature}: {coef:.2f}")
-# '''
-# # Perform k-fold cross-validation
-# # cv_scores = cross_val_score(model, X_scaled, y_transformed, cv=10)
-# # cv_scores = cross_val_score(model, X, y, cv=10)
-# # print("\nCross validation scores : ", round(cv_scores[0],2), round(cv_scores[1],2), round(cv_scores[2],2), round(cv_scores[3],2), round(cv_scores[4],2))
-#
-# print("----- %s seconds -----" % (time.time() - start_time))
-
-
