@@ -61,7 +61,9 @@ def compute_stat1(data):
 
         all_homo_count = 0
         for e in elements:
-            all_homo_count += np.sum(np.all(temp == e, axis=1))
+            for row in temp:
+                if row[0] == e[0] and row[1] == e[1]:
+                    all_homo_count += 1
         homoloci_array[i] = all_homo_count / sample_size
 
         curr_cnt = np.sum(temp == ref_allele)
@@ -130,6 +132,7 @@ class statisticsClass:
     ARRAY_MISSINGLoci = []
     data = []  ## Matrix is [individuals by loci]
     stat1 = 0
+    stat1_new = 0
     stat2 = 0
     stat3 = 0
     stat4 = 0
@@ -340,12 +343,11 @@ class statisticsClass:
     ######################################################################
     # stat1 - New Stat calculation                     ##
     ######################################################################
-    @njit
     def test_stat1_new(self):
         if self.DEBUG:
             print("Running stat1 with shape:", self.data.shape)
-        stat1, allcnt, homoLociCol = compute_stat1(self.data)
-        self.stat1 = stat1
+        stat1_new, allcnt, homoLociCol = compute_stat1(self.data)
+        self.stat1_new = stat1_new
     
 
 

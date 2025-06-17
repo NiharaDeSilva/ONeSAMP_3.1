@@ -36,7 +36,7 @@ BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
 #directory = "temp"
 path = os.path.join("/", directory)
-#results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/output_100_1/"
+results_path = "/blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/output_70/"
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
