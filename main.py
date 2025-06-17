@@ -293,6 +293,10 @@ except FileNotFoundError:
 
 simulation_time = time.time()
 
+
+
+
+
 ########################################
 # FINISHING ALL POPULATIONS
 ########################################
@@ -310,6 +314,7 @@ allPopStats = results_path + "allPopStats_" + getName(fileName)
 allPopStatistics.to_csv(allPopStats, index=False)
 '''
 
+'''
 # Assign dependent and independent variables for regression model
 Z = np.array(inputStatsList[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
 X = np.array(allPopStatistics[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
@@ -578,3 +583,5 @@ for name, coef in sorted(zip(feature_names, lasso_coef), key=lambda x: abs(x[1])
 
 print("")
 print("----- %s seconds -----" % (time.time() - start_time))
+
+'''

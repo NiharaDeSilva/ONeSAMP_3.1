@@ -6,6 +6,7 @@ import os
 import re
 
 import numpy as np
+from numba import njit
 
 import collections
 from decimal import *
@@ -169,7 +170,7 @@ class statisticsClass:
     ######################################################################
     # stat1 BW Estimator                                                ##
     ######################################################################
-#TODO: when we have small individuals the r result is slightly different from the LDNE
+    # TODO: when we have small individuals the r result is slightly different from the LDNE
     def test_stat1(self):
         if self.DEBUG:
             print("printing for stat1 begin: ")
@@ -251,6 +252,92 @@ class statisticsClass:
 
         if (self.DEBUG):
             print("printing for teststat1 end   ---->", self.stat1)
+
+
+    ######################################################################
+    # stat1 - New Stat calculation                     ##
+    ######################################################################
+    @njit
+    def compute_stat1_new(data):
+        sample_size, num_loci, _ = data.shape
+        total_spots = sample_size * 2
+        delete_cols = []
+        allcnt = np.zeros(num_loci)
+        homoloci_array = np.zeros(num_loci)
+        di = np.zeros(num_loci)
+
+        elements = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
+
+        for i in range(num_loci):
+            temp = data[:, i, :]
+            ref_allele = temp[0, 0]
+            
+            # Count homozygous loci
+            homo_mask = (temp[:, 0] == temp[:, 1]) & (temp[:, 0] == ref_allele)
+            homoloci = np.sum(homo_mask) / sample_size
+
+            # All homozygous values among [0,0], [1,1], ...
+            all_homo_count = 0
+            for e in elements:
+                all_homo_count += np.sum(np.all(temp == e, axis=1))
+            homoloci_array[i] = all_homo_count / sample_size
+
+            # Count matching alleles
+            curr_cnt = np.sum(temp == ref_allele)
+            allcnt[i] = curr_cnt
+
+            if curr_cnt == total_spots:
+                delete_cols.append(i)
+
+            freq_sq = (curr_cnt / total_spots) ** 2
+            di[i] = homoloci - freq_sq
+
+        # Remove monomorphic loci
+        keep_indices = np.ones(num_loci, dtype=np.bool_)
+        for col in delete_cols:
+            keep_indices[col] = False
+
+        data = data[:, keep_indices, :]
+        di = di[keep_indices]
+        homoloci_array = homoloci_array[keep_indices]
+        allcnt = allcnt[keep_indices]
+        num_loci = data.shape[1]
+        samp_correction = 2.0 / (num_loci * (num_loci - 1))
+
+        r = 0.0
+
+        for i in range(num_loci):
+            if di[i] == 0:
+                continue
+            lociA = data[:, i, :]
+            refA = lociA[0, 0]
+            index_A = ((lociA[:, 0] == refA) & (lociA[:, 1] == refA)).astype(np.int32)
+
+            for j in range(i + 1, num_loci):
+                if di[j] == 0:
+                    continue
+                lociB = data[:, j, :]
+                refB = lociB[0, 0]
+                index_B = ((lociB[:, 0] == refB) & (lociB[:, 1] == refB)).astype(np.int32)
+
+                hits = np.sum(index_A * index_B)
+                curr_cntA = np.sum(lociA == refA)
+                curr_cntB = np.sum(lociB == refB)
+
+                ai = curr_cntA / total_spots
+                bj = curr_cntB / total_spots
+
+                denom = (ai * (1 - ai) + di[i]) * (bj * (1 - bj) + di[j])
+                if denom == 0:
+                    continue
+
+                jointAB = hits / (2 * total_spots)
+                r += ((jointAB - ai * bj) ** 2) / denom
+
+        stat1 = r * samp_correction
+        return stat1, allcnt, homoloci_array
+
+
 
 
     ######################################################################
