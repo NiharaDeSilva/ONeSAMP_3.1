@@ -1,9 +1,9 @@
 /blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1
-c0706a-s8.ufhpc
-Tue Jun 17 18:35:21 EDT 2025
+c0706a-s3.ufhpc
+Tue Jun 17 18:56:22 EDT 2025
 Python path: /blue/boucher/suhashidesilva/conda_envs/my_env/bin/python
 0.60.0
-/tmp/slurmd/job5519228/slurm_script: line 28: 
+/tmp/slurmd/job5524117/slurm_script: line 28: 
 module load conda/25.3.1
 source activate /blue/boucher/suhashidesilva/conda_envs/my_env
 
@@ -13,4 +13,4 @@ python -c "import numba; print(numba.__version__)"
 Running plot script on multiple CPU cores
 Processed /blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/data_70/genePop100x250_1 and saved output to /blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/output_70/genePop100x250_1
 Processed /blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/data_70/genePop100x500_1 and saved output to /blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/output_70/genePop100x500_1
-Tue Jun 17 18:45:33 EDT 2025
+Tue Jun 17 19:06:05 EDT 2025
