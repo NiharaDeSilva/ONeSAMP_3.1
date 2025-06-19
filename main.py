@@ -18,7 +18,7 @@ from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import resample
 import joblib
-import torch
+# import torch
 #sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
 #from wfsim import run_simulation
 
@@ -33,10 +33,10 @@ DEBUG = 0  ## BOUCHER: Change this to 1 for debuggin mode
 OUTPUTFILENAME = "priors.txt"
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
-directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
-#directory = "temp"
+
+directory = "temp"
 path = os.path.join("/", directory)
-#results_path = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/output_100_1/"
+results_path = os.path.join(BASE_PATH, "output_100_1")
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
@@ -173,7 +173,7 @@ numLoci = inputFileStatistics.numLoci
 sampleSize = inputFileStatistics.sampleSize
 
 ##Creating input file & List with intial statistics
-textList = [str(inputFileStatistics.stat1), str(inputFileStatistics.test_stat1_new), str(inputFileStatistics.stat2), str(inputFileStatistics.stat3),
+textList = [str(inputFileStatistics.stat1), str(inputFileStatistics.stat1_new), str(inputFileStatistics.stat2), str(inputFileStatistics.stat3),
              str(inputFileStatistics.stat4), str(inputFileStatistics.stat5)]
 inputStatsList = textList
 
@@ -318,8 +318,8 @@ inputStatsList = pd.DataFrame([inputStatsList], columns=['Gametic_equilibrium', 
 allPopStats = results_path + "allPopStats_" + getName(fileName) 
 allPopStatistics.to_csv(allPopStats, index=False)
 
-
 '''
+
 # Assign dependent and independent variables for regression model
 Z = np.array(inputStatsList[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
 X = np.array(allPopStatistics[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
