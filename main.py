@@ -34,11 +34,9 @@ OUTPUTFILENAME = "priors.txt"
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
-#directory = "temp"
 path = os.path.join("/", directory)
 
 results_path = os.path.join(BASE_PATH, "./output_70/new/")
-
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
@@ -293,14 +291,16 @@ def main():
                 print(f"Generated an exception: {e}")
 
 
-
 if __name__ == '__main__':
     try:
         multiprocessing.set_start_method('fork')
     except RuntimeError:
         pass
     main()
+
     '''
+    multiprocessing.set_start_method('fork')
+>>>>>>> e62904e06489300ff8722be36372dfe69d43bc57
     # Parallel process the random populations and add to a list
     with concurrent.futures.ProcessPoolExecutor(max_workers=64) as executor:
         for result in executor.map(processRandomPopulation, range(numOneSampTrials)):
@@ -317,7 +317,7 @@ except FileNotFoundError:
 
 simulation_time = time.time()
 
-print("----- %s seconds -----" % (time.time() - start_time))
+print("----- Simulation time %s seconds -----" % (time.time() - start_time))
 
 
 
@@ -337,7 +337,7 @@ inputStatsList = pd.DataFrame([inputStatsList], columns=['Gametic_equilibrium', 
 allPopStats = results_path + "allPopStats_" + getName(fileName) 
 allPopStatistics.to_csv(allPopStats, index=False)
 
-'''
+
 
 # Assign dependent and independent variables for regression model
 Z = np.array(inputStatsList[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
@@ -605,7 +605,8 @@ print("\nLasso Feature Importances:")
 for name, coef in sorted(zip(feature_names, lasso_coef), key=lambda x: abs(x[1]), reverse=True):
     print(f"{name}: {coef:.4f}")
 
-print("")
-print("----- %s seconds -----" % (time.time() - start_time))
 
-'''
+print("")
+print("----- Model Training Time %s seconds -----" % (time.time() - simulation_time))
+print("----- Total Time %s seconds -----" % (time.time() - start_time))
+
