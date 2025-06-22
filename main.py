@@ -18,7 +18,7 @@ from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import resample
 import joblib
-import torch
+# import torch
 #sys.path.append("/blue/boucher/suhashidesilva/2025/WFsim")
 #from wfsim import run_simulation
 
@@ -36,7 +36,9 @@ BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
 #directory = "temp"
 path = os.path.join("/", directory)
-results_path = "/blue/boucher/suhashidesilva/Latest/ONeSAMP_3.1/output_70/"
+
+results_path = os.path.join(BASE_PATH, "./output_70/new/")
+
 
 POPULATION_GENERATOR = "./build/OneSamp"
 
@@ -162,7 +164,7 @@ inputFileStatistics.filterLoci(lociMissing)
 if (args.n):
     inputFileStatistics.filterMonomorphicLoci()
 
-inputFileStatistics.test_stat1()
+#inputFileStatistics.test_stat1()
 inputFileStatistics.test_stat1_new()
 inputFileStatistics.test_stat2()
 inputFileStatistics.test_stat3()
@@ -173,7 +175,7 @@ numLoci = inputFileStatistics.numLoci
 sampleSize = inputFileStatistics.sampleSize
 
 ##Creating input file & List with intial statistics
-textList = [str(inputFileStatistics.stat1), str(inputFileStatistics.test_stat1_new), str(inputFileStatistics.stat2), str(inputFileStatistics.stat3),
+textList = [str(inputFileStatistics.stat1_new), str(inputFileStatistics.stat2), str(inputFileStatistics.stat3),
              str(inputFileStatistics.stat4), str(inputFileStatistics.stat5)]
 inputStatsList = textList
 
@@ -201,14 +203,14 @@ results_list = []
 if (DEBUG):
     print("Start calculation of statistics for ALL populations")
 
-statistics1 = []
+#statistics1 = []
 statistics1_new = []
 statistics2 = []
 statistics3 = []
 statistics4 = []
 statistics5 = []
 
-statistics1 = [0 for x in range(numOneSampTrials)]
+#statistics1 = [0 for x in range(numOneSampTrials)]
 statistics1_new = [0 for x in range(numOneSampTrials)]
 statistics2 = [0 for x in range(numOneSampTrials)]
 statistics3 = [0 for x in range(numOneSampTrials)]
@@ -251,14 +253,14 @@ def processRandomPopulation(x):
     refactorFileStatistics.readData(intermediateFile)
     refactorFileStatistics.filterIndividuals(indivMissing)
     refactorFileStatistics.filterLoci(lociMissing)
-    refactorFileStatistics.test_stat1()
+    #refactorFileStatistics.test_stat1()
     refactorFileStatistics.test_stat1_new()
     refactorFileStatistics.test_stat2()
     refactorFileStatistics.test_stat3()
     refactorFileStatistics.test_stat5()
     refactorFileStatistics.test_stat4()
 
-    statistics1[x] = refactorFileStatistics.stat1
+    #statistics1[x] = refactorFileStatistics.stat1
     statistics1_new[x] = refactorFileStatistics.stat1_new
     statistics2[x] = refactorFileStatistics.stat2
     statistics3[x] = refactorFileStatistics.stat3
@@ -267,7 +269,7 @@ def processRandomPopulation(x):
 
 
     # Making file with stats from all populations
-    textList = [str(refactorFileStatistics.NE_VALUE), str(refactorFileStatistics.stat1), str(refactorFileStatistics.stat1_new),
+    textList = [str(refactorFileStatistics.NE_VALUE), str(refactorFileStatistics.stat1_new),
                 str(refactorFileStatistics.stat2),
                 str(refactorFileStatistics.stat3),
                 str(refactorFileStatistics.stat4), str(refactorFileStatistics.stat5)]
@@ -280,8 +282,8 @@ try:
 except FileExistsError:
     pass
 
-if __name__ == '__main__':
-    multiprocessing.set_start_method('fork')
+
+def main():
     # Parallel process the random populations and add to a list
     with concurrent.futures.ProcessPoolExecutor(max_workers=64) as executor:
         for result in executor.map(processRandomPopulation, range(numOneSampTrials)):
@@ -290,6 +292,23 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"Generated an exception: {e}")
 
+
+
+if __name__ == '__main__':
+    try:
+        multiprocessing.set_start_method('fork')
+    except RuntimeError:
+        pass
+    main()
+    '''
+    # Parallel process the random populations and add to a list
+    with concurrent.futures.ProcessPoolExecutor(max_workers=64) as executor:
+        for result in executor.map(processRandomPopulation, range(numOneSampTrials)):
+            try:
+                results_list.append(result)
+            except Exception as e:
+                print(f"Generated an exception: {e}")
+    '''
 
 try:
     shutil.rmtree(directory)
@@ -311,15 +330,15 @@ print("----- %s seconds -----" % (time.time() - start_time))
 ########################################
 
 # Assign input and all population stats to dataframes with column names
-allPopStatistics = pd.DataFrame(results_list, columns=['Ne','Gametic_equilibrium', 'new', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt'])
-inputStatsList = pd.DataFrame([inputStatsList], columns=['Gametic_equilibrium', 'new', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt'])
+allPopStatistics = pd.DataFrame(results_list, columns=['Ne','Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt'])
+inputStatsList = pd.DataFrame([inputStatsList], columns=['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt'])
 
 
 allPopStats = results_path + "allPopStats_" + getName(fileName) 
 allPopStatistics.to_csv(allPopStats, index=False)
 
-
 '''
+
 # Assign dependent and independent variables for regression model
 Z = np.array(inputStatsList[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
 X = np.array(allPopStatistics[['Gametic_equilibrium', 'Mlocus_homozegosity_mean', 'Mlocus_homozegosity_variance', 'Fix_index', 'Emean_exhyt']].astype(float).to_numpy())
