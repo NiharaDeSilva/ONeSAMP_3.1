@@ -40,122 +40,131 @@ m = {'0101': [0, 0],
 elements = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
 
 
-@njit(parallel=True)
+@njit(fastmath=False, parallel=True)
 def compute_stat1(data):
-    sampleSize, numloci, _ = data.shape
-    totalspots = sampleSize * 2
-
-    allcnt = np.zeros(numloci, dtype=np.int32)
-    homolociArray = np.zeros(numloci, dtype=np.float64)
-    di = np.zeros(numloci, dtype=np.float64)
-    deletecol = np.zeros(numloci, dtype=np.bool_)
-    r_values = np.zeros(numloci * numloci, dtype=np.float64)  # upper triangle only
-
-    ref_alleles = np.zeros(numloci, dtype=np.int32)
-    for i in range(numloci):
-        ref_alleles[i] = data[0, i, 0]
+    sample_size, num_loci, _ = data.shape
+    total_spots = np.float64(sample_size * 2)
+    delete_cols = []
 
     elements = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
 
-    for i in range(numloci):
-        ref = ref_alleles[i]
+    allcnt = []
+    homoloci_array = []
+    di = []
+
+    for i in range(num_loci):
         temp = data[:, i, :]
+        ref_allele = temp[0, 0]
 
-        homo_count = 0
-        currCnt = 0
-        count_map = np.zeros(4, dtype=np.int32)
+        homo_match = 0
+        for k in range(sample_size):
+            if temp[k, 0] == ref_allele and temp[k, 1] == ref_allele:
+                homo_match += 1
+        homoloci = np.float64(homo_match) / np.float64(sample_size)
 
-        for s in range(sampleSize):
-            a0 = temp[s, 0]
-            a1 = temp[s, 1]
-            if a0 == a1 and a0 == ref:
-                homo_count += 1
-            if a0 == ref:
-                currCnt += 1
-            if a1 == ref:
-                currCnt += 1
-            if a0 == a1:
-                for k in range(4):
-                    if a0 == k:
-                        count_map[k] += 1
+        # allHomoloci computation
+        matches = np.zeros(elements.shape[0])
+        for e_idx in range(elements.shape[0]):
+            count = 0
+            for j in range(sample_size):
+                if temp[j, 0] == elements[e_idx, 0] and temp[j, 1] == elements[e_idx, 1]:
+                    count += 1
+            matches[e_idx] = count
+        all_homo_count = np.sum(matches)
+        allHomoloci = np.float64(all_homo_count) / np.float64(sample_size)
+        homoloci_array.append(allHomoloci)
 
-        homoloci = homo_count / sampleSize
-        allHomoloci = np.sum(count_map) / sampleSize
+        curr_cnt = 0
+        for j in range(sample_size):
+            if temp[j, 0] == ref_allele:
+                curr_cnt += 1
+            if temp[j, 1] == ref_allele:
+                curr_cnt += 1
+        allcnt.append(curr_cnt)
 
-        allcnt[i] = currCnt
-        homolociArray[i] = allHomoloci
+        if curr_cnt == total_spots:
+            delete_cols.append(i)
 
-        if currCnt == totalspots:
-            deletecol[i] = True
+        freq_sq = (np.float64(curr_cnt) / total_spots) ** 2
+        di.append(homoloci - freq_sq)
 
-        di[i] = homoloci - ((currCnt / totalspots) ** 2)
+    # filter polymorphic loci
+    keep_indices = []
+    for i in range(num_loci):
+        if i not in delete_cols:
+            keep_indices.append(i)
 
-    kept_indices = [i for i in range(numloci) if not deletecol[i]]
-    new_numloci = len(kept_indices)
-    if new_numloci < 2:
-        return 0.0, allcnt, homolociArray
+    num_loci = len(keep_indices)
+    if num_loci < 2:
+        return np.float64(0.0), np.array(allcnt), np.array(homoloci_array)
 
-    sampCorrection = 2.0 / (new_numloci * (new_numloci - 1))
-    data_filtered = np.zeros((sampleSize, new_numloci, 2), dtype=np.int64)
-    new_di = np.zeros(new_numloci, dtype=np.float64)
-    new_ref_alleles = np.zeros(new_numloci, dtype=np.int32)
+    samp_correction = np.float64(2.0) / (np.float64(num_loci) * (np.float64(num_loci) - 1))
+    data_filtered = np.empty((sample_size, num_loci, 2), dtype=np.int64)
 
-    for idx in range(new_numloci):
-        i = kept_indices[idx]
+    new_allcnt = []
+    new_di = []
+    new_homoloci = []
+
+    for idx, i in enumerate(keep_indices):
         data_filtered[:, idx, :] = data[:, i, :]
-        new_di[idx] = di[i]
-        new_ref_alleles[idx] = ref_alleles[i]
+        new_allcnt.append(allcnt[i])
+        new_di.append(di[i])
+        new_homoloci.append(homoloci_array[i])
 
+    allcnt = new_allcnt
     di = new_di
-    ref_alleles = new_ref_alleles
+    homoloci_array = new_homoloci
 
-    for i_idx in prange(new_numloci):
-        if di[i_idx] == 0:
+    r = np.float64(0.0)
+
+    for i in range(num_loci):
+        if di[i] == 0:
             continue
-        LociA = data_filtered[:, i_idx, :]
-        refA = ref_alleles[i_idx]
-        index_A = np.zeros(sampleSize, dtype=np.int32)
-        currCntA = 0
-        for s in range(sampleSize):
-            cnt = 0
-            if LociA[s, 0] == refA:
-                cnt += 1
-            if LociA[s, 1] == refA:
-                cnt += 1
-            index_A[s] = cnt
-            currCntA += cnt
+        lociA = data_filtered[:, i, :]
+        refA = lociA[0, 0]
+        index_A = np.zeros(sample_size, dtype=np.int64)
+        for k in range(sample_size):
+            if lociA[k, 0] == refA and lociA[k, 1] == refA:
+                index_A[k] = 1
 
-        for j_idx in range(i_idx + 1, new_numloci):
-            if di[j_idx] == 0:
+        for j in range(i + 1, num_loci):
+            if di[j] == 0:
                 continue
-            LociB = data_filtered[:, j_idx, :]
-            refB = ref_alleles[j_idx]
-            index_B = np.zeros(sampleSize, dtype=np.int32)
-            currCntB = 0
-            for s in range(sampleSize):
-                cnt = 0
-                if LociB[s, 0] == refB:
-                    cnt += 1
-                if LociB[s, 1] == refB:
-                    cnt += 1
-                index_B[s] = cnt
-                currCntB += cnt
+            lociB = data_filtered[:, j, :]
+            refB = lociB[0, 0]
+            index_B = np.zeros(sample_size, dtype=np.int64)
+            for k in range(sample_size):
+                if lociB[k, 0] == refB and lociB[k, 1] == refB:
+                    index_B[k] = 1
 
             hits = np.sum(index_A * index_B)
-            ai = currCntA / totalspots
-            bj = currCntB / totalspots
 
-            denom = (ai * (1 - ai) + di[i_idx]) * (bj * (1 - bj) + di[j_idx])
+            curr_cntA = 0
+            for k in range(sample_size):
+                if lociA[k, 0] == refA:
+                    curr_cntA += 1
+                if lociA[k, 1] == refA:
+                    curr_cntA += 1
+
+            curr_cntB = 0
+            for k in range(sample_size):
+                if lociB[k, 0] == refB:
+                    curr_cntB += 1
+                if lociB[k, 1] == refB:
+                    curr_cntB += 1
+
+            ai = np.float64(curr_cntA) / total_spots
+            bj = np.float64(curr_cntB) / total_spots
+
+            denom = (ai * (1.0 - ai) + di[i]) * (bj * (1.0 - bj) + di[j])
             if denom == 0:
                 continue
 
-            jointAB = hits / (2 * totalspots)
-            r = ((jointAB - ai * bj) ** 2) / denom
-            r_values[i_idx * new_numloci + j_idx] = r
+            jointAB = np.float64(hits) / (np.float64(2.0) * total_spots)
+            r += ((jointAB - ai * bj) ** 2) / denom
 
-    r_total = np.sum(r_values)
-    stat1 = r_total * sampCorrection
-    return stat1, allcnt, homolociArray
+    stat1 = r * samp_correction
+    return stat1, np.array(allcnt), np.array(homoloci_array)
 
 
 class statisticsClass:
