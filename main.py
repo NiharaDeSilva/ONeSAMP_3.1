@@ -34,8 +34,6 @@ OUTPUTFILENAME = "priors.txt"
 
 BASE_PATH = os.path.dirname(os.path.realpath(__file__))
 directory = "/blue/boucher/suhashidesilva/2025/ONeSAMP_3.1_V1/temp"
-
-#directory = "temp"
 path = os.path.join("/", directory)
 
 results_path = os.path.join(BASE_PATH, "./output_70/new/")
@@ -302,6 +300,7 @@ if __name__ == '__main__':
 
     '''
     multiprocessing.set_start_method('fork')
+>>>>>>> e62904e06489300ff8722be36372dfe69d43bc57
     # Parallel process the random populations and add to a list
     with concurrent.futures.ProcessPoolExecutor(max_workers=64) as executor:
         for result in executor.map(processRandomPopulation, range(numOneSampTrials)):
